@@ -33,8 +33,10 @@ class Player {
 
     this.underAttack = false;
     this.underRangedAttack = false;
-    this.isFleeing = false;
+    this.runningAway = false;
     this.enemies = '';
+    this.enemiesInRange = 0;
+    this.enemiesInView = 0;
     this.didMove = false;
 
     this.previous = {
@@ -44,8 +46,10 @@ class Player {
 
       underAttack: false,
       underRangedAttack: false,
-      isFleeing: false,
+      runningAway: false,
       enemies: '',
+      enemiesInRange: 0,
+      enemiesInView: 0,
       didMove: false
     };
 
@@ -72,10 +76,12 @@ class Player {
 
     this.underRangedAttack = this.underRangedAttack || this.underAttack && !this.touchingAnything();
 
+    this.runningAway = this.previous.runningAway;
+
     this.findEnemies();
 
-    if (this.didMove && this.previous.enemies.length === this.enemies.length) {
-      // we moved, so all enemies stayed the same
+    if (this.didMove && this.enemiesInView === this.previous.enemiesInView) {
+      // we moved, and all enemies stayed the same
       this.previous.enemies = this.enemies;
     }
 
@@ -92,16 +98,25 @@ class Player {
 
   findEnemies() {
     this.enemies = '';
+    this.enemiesInRange = 0;
+    this.enemiesInView = 0;
 
     for (let direction in this.spaces) {
+      let didFindInDirection = false;
+
       for (let i = 0; i < this.spaces[direction].length; i++) {
-        if (this.spaces[direction][i].isCaptive()) {
-          break;
+        if (!didFindInDirection && this.spaces[direction][i].isCaptive()) {
+          didFindInDirection = true;
         }
 
         if (this.spaces[direction][i].isEnemy()) {
-          this.enemies += direction + i;
-          break;
+          if (!didFindInDirection) {
+            this.enemies += direction + i;
+            this.enemiesInView++;
+            didFindInDirection = true;
+          }
+
+          this.enemiesInRange++;
         }
       }
     }
@@ -155,7 +170,9 @@ class Player {
 
         if (distance > 1) {
           // propose to chase the captive
-          this.proposeAction(20, 'walk', direction);
+          this.proposeAction(20, 'walk', direction, () => {
+            this.didMove = true;
+          });
         }
       }
     });
@@ -176,8 +193,27 @@ class Player {
             }
           }
 
-          if ((this.enemies !== this.previous.enemies) || this.underRangedAttack) {
+          if (this.enemies !== this.previous.enemies) {
             this.proposeAction(60 + distance, 'shoot', direction);
+          } else if (this.underAttack) {
+            // if the enemy is ranged (which we don't know), we must
+            // decide to walk there or to shoot it from a distance
+            let facingEnemy = direction === 'forward';
+            let projectedDamage = 3.5 * distance;
+
+            if (this.health - projectedDamage > 10) {
+              if (facingEnemy) {
+                this.proposeAction(70 - distance, 'walk', direction, () => {
+                  this.didMove = true;
+                });
+              } else {
+                this.proposeAction(70 - distance, 'pivot', direction, () => {
+                  this.didMove = true;
+                });
+              }
+            } else {
+              this.proposeAction(60 + distance, 'shoot', direction);
+            }
           }
         }
       }
@@ -186,18 +222,27 @@ class Player {
   }
 
   tryRecover() {
-    let healthLow = this.health < (this.maxHealth * 1/2);
+    let healthLow = this.enemiesInRange > 1
+      ? this.health < (this.maxHealth * 1/2)
+      : this.health < (this.maxHealth * 2/5);
 
     if (this.underAttack && healthLow) {
       // very urgent to run away
       this.proposeAction(90, 'walk', 'backward', () => {
         this.didMove = true;
+        this.runningAway = true;
       });
     }
 
-    if (!this.underAttack && this.health < this.maxHealth) {
-      this.proposeAction(50, 'rest');
+    if (this.health < this.maxHealth * 3/4) {
+      this.proposeAction(30, 'rest');
     }
+
+    if (this.runningAway && !this.underAttack) {
+      this.proposeAction(80, 'rest');
+    }
+
+    this.runningAway = this.runningAway && this.health < this.maxHealth
   }
 
   tryWalk() {
