@@ -4,6 +4,7 @@
 
 > **TIP:** Watch your back.
 
+> **CLUE:** Don't just keep shooting the bow while you're being attacked from behind.
 
 ### Floor Map
 

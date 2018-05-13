@@ -186,8 +186,8 @@ class Player {
         }
 
         if (distance > 1) {
-          for (let i = 0; i < distance - 1; i++) {
-            if (this.spaces[direction][i].isCaptive()) {
+          for (let i = 0; i < distance - 2; i++) {
+            if (this.spaces[direction][i].isCaptive() || this.spaces[direction][i].isEnemy()) {
               // we don't want to shoot captives!!
               return;
             }
@@ -195,19 +195,24 @@ class Player {
 
           if (this.enemies !== this.previous.enemies) {
             this.proposeAction(60 + distance, 'shoot', direction);
+          } else if (this.underRangedAttack && this.enemiesInView > 1) {
+            // we don't know which direction to chase the enemies so
+            // we'll have to just shoot first
+
+            this.proposeAction(60 + distance, 'shoot', direction);
           } else if (this.underAttack) {
             // if the enemy is ranged (which we don't know), we must
             // decide to walk there or to shoot it from a distance
             let facingEnemy = direction === 'forward';
-            let projectedDamage = 3.5 * distance;
+            let projectedDamage = 3 * distance + (facingEnemy ? 0 : 1);
 
             if (this.health - projectedDamage > 10) {
               if (facingEnemy) {
-                this.proposeAction(70 - distance, 'walk', direction, () => {
+                this.proposeAction(65 + distance, 'walk', direction, () => {
                   this.didMove = true;
                 });
               } else {
-                this.proposeAction(70 - distance, 'pivot', direction, () => {
+                this.proposeAction(65 + distance, 'pivot', direction, () => {
                   this.didMove = true;
                 });
               }
@@ -242,7 +247,7 @@ class Player {
       this.proposeAction(80, 'rest');
     }
 
-    this.runningAway = this.runningAway && this.health < this.maxHealth
+    this.runningAway = this.runningAway && this.health < (this.maxHealth - 2);
   }
 
   tryWalk() {
