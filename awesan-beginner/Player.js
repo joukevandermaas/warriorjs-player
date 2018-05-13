@@ -227,16 +227,34 @@ class Player {
   }
 
   tryRecover() {
-    let healthLow = this.enemiesInRange > 1
-      ? this.health < (this.maxHealth * 1/2)
-      : this.health < (this.maxHealth * 2/5);
+    if (this.underAttack) {
+      let projectedDamage = this.previous.health - this.health;
 
-    if (this.underAttack && healthLow) {
-      // very urgent to run away
-      this.proposeAction(90, 'walk', 'backward', () => {
-        this.didMove = true;
-        this.runningAway = true;
-      });
+      if (this.underRangedAttack) {
+        // we'd need to run away and we may sustain some damage
+        // while doing that
+        projectedDamage *= 3;
+      } else {
+        // the enemy behind the current one may snipe us if we
+        // don't take its damage into account
+        projectedDamage *= this.enemiesInRange;
+      }
+
+      let obstacles = false;
+
+      for (let i = 0; i < this.spaces['backward'].length; i++) {
+        if (!this.spaces['backward'][i].isEmpty()) {
+          obstacles = true;
+        }
+      }
+
+      if (!obstacles && this.health - projectedDamage <= 0) {
+        // very urgent to run away
+        this.proposeAction(90, 'walk', 'backward', () => {
+          this.didMove = true;
+          this.runningAway = true;
+        });
+      }
     }
 
     let stairsInRange = false;
