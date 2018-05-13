@@ -31,6 +31,8 @@ class Player {
 
     this.warrior = null;
 
+    this.walkingDirection = 'forward';
+
     this.underAttack = false;
     this.underRangedAttack = false;
     this.runningAway = false;
@@ -43,6 +45,8 @@ class Player {
       health: 20,
 
       turn: -1,
+
+      walkingDirection: 'forward',
 
       underAttack: false,
       underRangedAttack: false,
@@ -193,7 +197,11 @@ class Player {
             }
           }
 
-          if (this.enemies !== this.previous.enemies) {
+          let enemiesChanged = this.enemies !== this.previous.enemies;
+          let healthLost = this.previous.health - this.health;
+          let remainingEnemyLikelyRanged = !(this.enemiesInView < this.previous.enemiesInView && healthLost < 5);
+
+          if (enemiesChanged && remainingEnemyLikelyRanged) {
             this.proposeAction(60 + distance, 'shoot', direction);
           } else if (this.underRangedAttack && this.enemiesInView > 1) {
             // we don't know which direction to chase the enemies so
@@ -227,9 +235,9 @@ class Player {
   }
 
   tryRecover() {
-    if (this.underAttack) {
-      let projectedDamage = this.previous.health - this.health;
+    let projectedDamage = this.previous.health - this.health;
 
+    if (this.underAttack) {
       if (this.underRangedAttack) {
         // we'd need to run away and we may sustain some damage
         // while doing that
@@ -242,15 +250,17 @@ class Player {
 
       let obstacles = false;
 
-      for (let i = 0; i < this.spaces['backward'].length; i++) {
-        if (!this.spaces['backward'][i].isEmpty()) {
+      let runDirection = oppositeDirection(this.walkingDirection);
+
+      for (let i = 0; i < this.spaces[runDirection].length; i++) {
+        if (!this.spaces[runDirection][i].isEmpty()) {
           obstacles = true;
         }
       }
 
       if (!obstacles && this.health - projectedDamage <= 0) {
         // very urgent to run away
-        this.proposeAction(90, 'walk', 'backward', () => {
+        this.proposeAction(90, 'walk', runDirection, () => {
           this.didMove = true;
           this.runningAway = true;
         });
@@ -269,27 +279,43 @@ class Player {
       return;
     }
 
-    if (this.health < this.maxHealth * 3/4) {
-      this.proposeAction(30, 'rest');
+    if (this.health < 5) {
+      if (this.enemiesInRange > 0) {
+        this.proposeAction(30, 'rest');
+      }
     }
 
-    if (this.runningAway && !this.underAttack) {
-      this.proposeAction(80, 'rest');
+    if (this.health < this.maxHealth * 3/4) {
+      if (this.runningAway && !this.underAttack) {
+        if (this.previous.underAttack) {
+          this.proposeAction(50, 'rest');
+        } else {
+          this.proposeAction(80, 'rest');
+        }
+      }
     }
 
     this.runningAway = this.runningAway && this.health < (this.maxHealth - 2);
   }
 
   tryWalk() {
-    let space = this.spaces['forward'][0];
+    let space = this.spaces[this.walkingDirection][0];
 
     let allWallsFound = true;
 
     for (let direction in this.spaces) {
       if (this.spaces[direction][0].isEmpty()) {
-        this.proposeAction(10, 'pivot', 'backward', () => {
-          this.didMove = true;
-        });
+        if (this.enemiesInRange > 0) {
+          this.proposeAction(10, 'pivot', direction, () => {
+            this.walkingDirection = 'forward';
+            this.didMove = true;
+          });
+        } else {
+          this.proposeAction(10, 'walk', direction, () => {
+            this.walkingDirection = direction;
+            this.didMove = true;
+          });
+        }
       }
 
       if (!this.wallsFound[direction]) {
@@ -301,12 +327,8 @@ class Player {
       return;
     }
 
-    if (space.isEmpty() && !space.isStairs() && this.spaces['forward'][1].isWall()) {
-      this.proposeAction(15, 'pivot', 'backward', () => {
-        this.didMove = true;
-      });
-    } else if (space.isEmpty()) {
-      this.proposeAction(15, 'walk', 'forward', () => {
+    if (space.isEmpty()) {
+      this.proposeAction(15, 'walk', this.walkingDirection, () => {
         this.didMove = true;
       });
     }
