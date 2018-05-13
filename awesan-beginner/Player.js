@@ -239,6 +239,18 @@ class Player {
       });
     }
 
+    let stairsInRange = false;
+
+    this.foreachSpace((space, direction) => {
+      if (space.isStairs()) {
+        stairsInRange = true;
+      }
+    });
+
+    if (stairsInRange && this.enemiesInRange === 0) {
+      return;
+    }
+
     if (this.health < this.maxHealth * 3/4) {
       this.proposeAction(30, 'rest');
     }
