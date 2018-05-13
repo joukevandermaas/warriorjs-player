@@ -271,7 +271,11 @@ class Player {
       return;
     }
 
-    if (space.isEmpty()) {
+    if (space.isEmpty() && !space.isStairs() && this.spaces['forward'][1].isWall()) {
+      this.proposeAction(15, 'pivot', 'backward', () => {
+        this.didMove = true;
+      });
+    } else if (space.isEmpty()) {
       this.proposeAction(15, 'walk', 'forward', () => {
         this.didMove = true;
       });
